@@ -1,0 +1,23 @@
+version: "3"
+services: 
+  db: 
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: password123
+      POSTGRES_USER: user123
+      POSTGRES_DB: db123
+  app:
+    image: my-node-app
+    ports: 
+      - 13000:3000
+
+# Type into CMD: 
+#   1. docker build -t [image] .
+#   2. docker-compose up
+#     If error code 127: >[npm, not found ->
+#        a. Revise your code at file Dockfile 
+#           (a common error for example: not single quotes, double quotes)
+#        b. RUN "docker system prune" and repeat 
+
+# Finished? Revise your docker desktop and you should see a new 
+#   container with the name of the project
