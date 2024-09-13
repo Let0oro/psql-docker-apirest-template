@@ -1,9 +1,9 @@
 ### Extension name (VScode): REST Client (with lightblue icon)
 ###
-GET http://localhost:1234
+GET http://localhost:3000/
 
 ###
-POST http://localhost:1234
+POST http://localhost:3000/api/
 Content-Type: application/json
 
 {
