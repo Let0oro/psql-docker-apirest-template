@@ -165,8 +165,6 @@ server.listen(port, () => { // Establish connection with the port
 Into your test.rest file, copy this code (this is an basic example of fetchs, you can use your owns):
 
 ```shell
-
-
 ### SETUP
 POST http://localhost:3000/setup
 
@@ -214,7 +212,7 @@ You should now have at least the following contents in your directory.
 │ └── README.md
 ```
 
-2. Manage your Dockerfile to obtain the image you want (f.e.: postgres):
+2. Manage your Dockerfile and compose.yaml to obtain the image you want (f.e.: postgres):
 
 - Open your compose.yaml file and replace all the code on this file for this other:
 
@@ -245,10 +243,9 @@ FROM node:${NODE_VERSION}-alpine
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-COPY ./src ./src
-COPY ./api ./api
-
 RUN npm install
+
+COPY . .
 
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
