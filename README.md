@@ -2,6 +2,8 @@
 
 A psql js express rest API connected with Docker by dockerfiles, with an explanation of the steps to do. Thanks to [smoljames youtuber](https://youtu.be/sDPw2Yp4JwE?si=Gu08vK3IkVQvUvDw).
 
+Another welcome [tutorial](https://medium.com/@antonio.maccarini/dockerize-a-react-application-with-node-js-postgres-and-nginx-124c204029d4)
+
 If you want, this is the official [tutorial for nodeJS](https://docs.docker.com/guides/language/nodejs/containerize/)
 
 # Table of contents
@@ -14,10 +16,15 @@ If you want, this is the official [tutorial for nodeJS](https://docs.docker.com/
 
 ### Intall packages
 
-To get start, you must install this packages: 
+To get started, you must run this command to create the package.json...: 
 
 ```shell
-npm install express pg
+npm init -y
+```
+
+And install these packages:
+```shell
+npm install express pg nodemon
 ```
 
 ### Add running script to your package.json
@@ -25,33 +32,50 @@ npm install express pg
 In your package.json file, you can add the script: 
 
 ```json
-"dev": "node ./api/server.js"
+"main": "./api/server.js"
+/.../
+"server": "nodemon .",
 ```
-Now, yout file should be similar to this: 
+
+An important detail is to add the ```type: module``` at least: 
+```json
+"type": "module"
+```
+
+We also left you another scripts to help you with the docker management: 
+```json
+"docker:compose-built": "docker-compose up --build",
+"docker:compose-run": "docker-compose up",
+"docker:build-img": "docker build -t my-server .",
+"docker:restart": "docker system prune && docker build -t my-server . && docker-compose up --build"
+```
+
+Now, your file should be similar to this: 
 
 ```json
 {
-  "name": "psql-express-api-smoljames",
+  "name": "space-pixels-api",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "",
+  "main": "./api/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node ./api/server.js"
+    "server": "nodemon .",
+    "docker:compose-built": "docker-compose up --build",
+    "docker:compose-run": "docker-compose up",
+    "docker:build-img": "docker build -t my-server .",
+    "docker:restart": "docker system prune && docker build -t my-server . && docker-compose up --build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "express": "^4.19.2",
-    "pg": "^8.12.0",
-    "pq": "^0.0.3"
+    "express": "^4.21.0",
+    "nodemon": "^3.1.4",
+    "pg": "^8.12.0"
   },
-  "devDependencies": {
-    "@types/node": "^20.14.10"
-  }
+  "type": "module"
 }
-
 ```
 
 ### Create an api folder at the root of your project
@@ -73,91 +97,116 @@ Then, into this api folder, you shoud create a db.js file, a server.js file and 
 Into your db.js file, copy this code, later we exposed you this parts: 
 
 ```js
-const { Pool } = require("pg");
+import pg from 'pg';
 
-const { database } = require("pg/lib/defaults");
+const { Client } = pg;
 
-const pool = new Pool({
-  host: "db",
-  port: 3000,
-  user: "user123",
-  password: "password123",
-  database: "db123",
+const client = new Client({
+  user: 'user',
+  host: 'db',
+  database: 'db123',
+  password: 'pass',
+  port: 5432,
 });
+client.connect();
 
-module.exports = pool;
+const createTable = async () => { 
+  await client.query(`CREATE TABLE IF NOT EXISTS users 
+  (id serial PRIMARY KEY, name VARCHAR (255) UNIQUE NOT NULL, 
+  email VARCHAR (255) UNIQUE NOT NULL, age INT NOT NULL);`)
+};
+
+createTable();
+
+export default client;
 ```
 
-The ```const { Pool } = require("pg");``` line connect with the pg library, which manage the postgres languaje in JS and allow to create a new postgres connection.
+The ```import pg from 'pg';``` line connect with the pg library, which manage the postgres languaje in JS and allow to create a new postgres connection.
 
 
 ```js
-const pool = new Pool({
-  host: "hostNameExample",
-  port: arbitraryNumberOfYourPort,
-  user: "userNameExample",
-  password: "passwordExample",
-  database: "databaseNameExample",
-});
-```
-This is the basic configuration of our Pool (always with the same values than our compose.yaml file) 
+const { Client } = pg;
 
-The ```module.exports = pool;``` line allows to import this variable in other files
+const client = new Client({
+  user: 'user',
+  host: 'db',
+  database: 'db123',
+  password: 'pass',
+  port: 5432,
+});
+client.connect();
+```
+This is the basic configuration of our Client (always with the same values than our compose.yaml file).
+
+```
+const createTable = async () => { 
+  await client.query(`CREATE TABLE IF NOT EXISTS users 
+  (id serial PRIMARY KEY, name VARCHAR (255) UNIQUE NOT NULL, 
+  email VARCHAR (255) UNIQUE NOT NULL, age INT NOT NULL);`)
+};
+
+createTable();
+```
+This is for create a table in our DB when it doesn't exist.
+
+The ```export default client;``` line allows to import this variable in other files.
 
 ### Create the server.js for manage your  postgres database
 
 Into your server.js file, copy this code: 
 
 ```js
-const express = require("express");
-const pool = require("./db"); //! Importing the pool variable with its information.
+import express from "express";
+import client from "./db.js"; //! Importing the client variable with its connection to DB.
+
 const port = 3000; // Selecting a port
 
 // Configuration for express
 const server = express();
 server.use(express.json());
-server.use(express.urlencoded({extended: false}));
+server.use(express.urlencoded({ extended: true }));
 
-server.get("/", async (req, res) => { //! GET
-    try {
-        const data = await pool.query("SELECT * FROM schools"); // Manage the calls by type PostgresSQL querys (at pool connection, .query for use the query method and the string with the specified query) 
-        res.status(200).send(data.rows);
-      } catch (error) {
-        console.error(error);
-        res.sendStatus(500);
-      }
-});
-
-server.post("/", async (req, res) => { //! POST
-  const { name, location } = req.body;
+server.get("/api", (req, res) => { //! Test the connection
   try {
-    await pool.query("INSERT INTO schools (name, adress) VALUES ($1, $2)", [
-      name,
-      location,
-    ]); // string variables are allowed while their are placed in the second argument array, also you can use template strings
-    res.status(201).send({message: 'Succesfully added child'})
-  } catch (error) {
-    console.error(error);
-    res.sendStatus(500);
+    res.send("Hello World!");
+  } catch (err) {
+    console.error({ err });
   }
 });
 
-server.post("/setup", async (req, res) => { //!POST to create the table, this must be our first call, like the creation of a table in mongoDB but through command lines
+server.get("/api/all", async (req, res) => { // GET all users
   try {
-    await pool.query(
-      "CREATE TABLE schools( id SERIAL PRIMARY KEY, name VARCHAR(100), adress VARCHAR(100) )"
+    const response = await client.query(`SELECT * FROM users`);
+
+    if (response) {
+      res.status(200).send(response.rows);
+    }
+  } catch (error) {
+    res.status(500).send("Error");
+    console.log(error);
+  }
+});
+
+server.post("/api/form", async (req, res) => { //! POST an user
+  try {
+    const name = req.body.name;
+    const email = req.body.email;
+    const age = req.body.age;
+
+    const response = await client.query(
+      `INSERT INTO users(name, email, age) VALUES ('${name}', '${email}', ${age});`
     );
-    res.status(201).send({message: 'Succesfully created table'})
-
+    if (response) {
+      res.status(200).send(req.body);
+    }
   } catch (error) {
-    console.error(error);
-    res.status(500);
+    res.status(500).send("Error");
+    console.log(error);
   }
 });
 
-server.listen(port, () => { // Establish connection with the port
-  console.log(`Conexion succesfull with port ${port}`);
-});
+// Establish connection with the port
+server.listen(port, () => console.log(`Server running on port ${port}`)); 
 ```
 
 ### Create the test.rest file to test and interact with your postgres database
@@ -165,32 +214,24 @@ server.listen(port, () => { // Establish connection with the port
 Into your test.rest file, copy this code (this is an basic example of fetchs, you can use your owns):
 
 ```shell
-### SETUP
-POST http://localhost:3000/setup
+### GET CONNECTION
+GET http://localhost:3000/api
 
 ### GET ALL
-GET http://localhost:3000/
+GET http://localhost:3000/api/all
 
 ### POST
-POST http://localhost:3000/
+POST http://localhost:3000/api/form
 Content-Type: application/json
 
 {
-    "name": "David",
-    "location": "10 hello world street"
+    "name": "foo",
+    "email": "foo@email.mail",
+    "age": "30"
 }
 ```
 
 ## Start your Docker configuration
-
-### From zero
-
-Run in CMD:
-
-1. ```npm init -y```
-2. ```npm i```
-
-### With package.json and package-lock.json
 
 Open [Docker Desktop](https://docs.docker.com/desktop/)
 
@@ -203,6 +244,10 @@ Run in CMD
 You should now have at least the following contents in your directory.
 ```shell
 ├── name-of-your-directory
+│ └── api/
+│   ├── server.js
+│   ├── db.js
+│ │ └── test.rest
 │ ├── .dockerignore
 │ ├── .gitignore
 │ ├── compose.yaml
@@ -217,19 +262,29 @@ You should now have at least the following contents in your directory.
 - Open your compose.yaml file and replace all the code on this file for this other:
 
 ```yaml
-
 version: "3"
 services: 
-  db: 
+  db:
     image: postgres
-    environment:
-      POSTGRES_PASSWORD: password123
-      POSTGRES_USER: user123
-      POSTGRES_DB: db123
-  app:
-    image: my-server
+    container_name: db
+    restart: always
+    tty: true
+    environment: 
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_USER=user
+      - POSTGRES_DB=db123
     ports: 
-      - 13000:3000
+      - "5432:5432"
+  server:
+    image: my-server
+    container_name: server
+    working_dir: /usr/src/app
+    tty: true
+    ports: 
+      - "3000:3000"
+    command: npm run server
+    depends_on:
+       - db
 ```
 - Open the Dockerfile and replace the code here for this other: 
 
@@ -248,20 +303,20 @@ RUN npm install
 COPY . .
 
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "server"]
 
 ```
 Note: Warning about the .gitignore files, you can only use node_modules (also in .dockerignore file)
 
-3. ```docker build -t my-server .``` to create the image in docker desktop
+3. ```docker build -t my-server .``` or ```docker:build-img``` (On case you are copied the scripts we make for you) to create the image in Docker desktop
 
-4. ```docker compose up --build``` (if it fails, revise that docker desktop is open)
+4. ```docker compose up --build``` or ```docker:compose-built``` (On case you are copied the scripts we make for you). If it fails, revise the Docker desktop is open.
 
-* In addition, you can use this command to run the containers in docker when they are stopped ```docker-compose up```
+* In addition, you can use this command to run the containers in Docker when they are stopped ```docker-compose up```
    If error code 127: >npm, not found ->
    a. Revise your code at file Dockfile (a common error for example: not single quotes, double quotes)
    b. RUN "docker system prune" and repeat
 
-Finished? Revise your docker desktop and you should see a new container with the name of the project
+Finished? Revise your Docker desktop and you should see a new container with the project's name and start filling your DB with interesting info.
 
 ---
