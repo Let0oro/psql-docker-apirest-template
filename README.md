@@ -138,7 +138,7 @@ client.connect();
 ```
 This is the basic configuration of our Client (always with the same values than our compose.yaml file).
 
-```
+```js
 const createTable = async () => { 
   await client.query(`CREATE TABLE IF NOT EXISTS users 
   (id serial PRIMARY KEY, name VARCHAR (255) UNIQUE NOT NULL, 
